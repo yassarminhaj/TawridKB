@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>{{ title or config.SITE_TITLE }}</title>
+  <meta name="description" content="Tawrid Knowledge Base" />
+
+  <!-- CSS: keep your original pipeline -->
+  <link rel="icon" href="{{ url_for('static', filename='images/default-logo.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/normalize.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/skeleton.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+</head>
+<body>
+
+
+
+  <!-- ===== PAGE CONTENT GOES HERE ===== -->
+  {% block content %}{% endblock %}
+
+
+</body>
+</html>
