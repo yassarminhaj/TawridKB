@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- ===== ROW #1: Video player (9 cols) + Playlist (3 cols) ===== -->
+<div class="row" style="margin-top: 20px;">
+  <div class="twelve columns">
+
+    <!-- Video player -->
+    <div class="seven columns" style = "margin-left : 130px; height : 450px;">
+      <iframe id="VideoPlayer" class="responsive-iframe"
+              src="{{ default_video_url or '' }}"
+              frameborder="0" allowfullscreen=""></iframe>
+    </div>
+
+    <!-- Playlist -->
+    <div class="three columns">
+      <div class="scroll_container custom-scrollbar" style="height: 350px;">
+        <!-- ONE dynamic list container -->
+        <div id="playListItems" class="playListItems"></div>
+      </div>
+
+      <!-- Switch Playlist (dropdown + button inline) -->
+      <div id="selectPlaylist" style="margin-top: 20px; height: 100px;">
+        <select id="thePlayListItems">
+          <option value="01_supplier" selected>Supplier</option>
+          <option value="02_buyer">Buyer</option>
+          <option value="03_funder">Funder</option>
+        </select>
+        <button class="button-primary" onclick="switchPlaylist()">Switch Playlist</button>
+
+        <div>
+          <center><p id="tagLines">Listing Supplier Playlist</p></center>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ===== ROW #2: HowTo Docs – tabs generated from /api/pdfs folders ===== -->
+<div class="row" style="margin-top: 10px;">
+  <div class="ten columns" style="margin-left: 70px;">
+
+    <!-- Tabs (built dynamically) -->
+    <span id="tabMenu" class="nav-menu"></span>
+
+    <!-- Single docs block that repopulates when tab changes -->
+    <div id="docs" class="appBlock">
+      <legend class="docs-header" id="docs-legend"></legend>
+      <h6 id="docs-blurb"></h6>
+
+      <table class="docList">
+        <colgroup>
+          <col width="32.6%">
+          <col width="67.4%">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Document Name</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody id="doc-tbody"></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== PAGE SCRIPT (videos + docs) ===== -->
+<script>
+  /* -------------------- CONFIG FROM SERVER -------------------- */
+  const CATEGORIES = {{ categories | tojson }};   // videos use this (Supplier/Buyer/Funder)
+  const DEFAULT_CODE = "01_supplier";
+
+  // Data stores
+  let KB_VIDEOS = {};     // /api/videos
+  let KB_PDFS  = {};      // /api/pdfs  -> { "<folder>": [{name, viewer}, ...], ... }
+  let DESCRIPTIONS = {};  // reserved for future per-video descriptions
+
+  /* -------------------- HELPERS -------------------- */
+  function titleFromFilename(name) {
+    const noExt = name.replace(/\.[^/.]+$/, "");
+    return noExt.replace(/[_-]+/g, " ").trim();
+  }
+  function prettyLabelFromFolder(code) {
+    // 01_supplier -> Supplier, 02_buyer -> Buyer, 03_funder -> Funder, otherwise Title Case
+    const cleaned = code.replace(/^\d+[_-]*/, "");
+    return cleaned.replace(/[_-]+/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  /* -------------------- VIDEO PLAYLIST (unchanged) -------------------- */
+  function makeListItem(code, fileObj, idx, isActive) {
+    const id = `${code}__${idx}`;
+    const div = document.createElement("div");
+    div.className = `row listItem ${isActive ? "playlist-active" : "playlist-item"}`;
+    if (idx === 0) div.style.marginTop = "5px";
+    div.id = id;
+
+    div.dataset.url  = fileObj.url;
+    div.dataset.code = code;
+    div.dataset.name = fileObj.name;
+    div.setAttribute("onclick", `changeVideo('${id}')`);
+
+    const b = document.createElement("b");
+    b.className = "listTitle";
+    b.textContent = titleFromFilename(fileObj.name);
+
+    const fs = document.createElement("fieldset");
+    const key = `${code}|${fileObj.name}`;
+    fs.textContent = DESCRIPTIONS[code]?.[fileObj.name]
+      || DESCRIPTIONS[key]
+      || "Video description coming soon.";
+
+    div.appendChild(b);
+    div.appendChild(fs);
+    return div;
+  }
+
+  function buildPlaylist(code) {
+    const container = document.getElementById("playListItems");
+    container.innerHTML = "";
+
+    const files = KB_VIDEOS[code] || [];
+    if (files.length === 0) {
+      const empty = document.createElement("div");
+      empty.style.padding = ".6rem";
+      empty.style.color = "#777";
+      empty.textContent = `No videos found in uploads/videos/${code}/`;
+      container.appendChild(empty);
+      setPlayerSrc("");
+      updateActive(null);
+      return;
+    }
+
+    files.forEach((f, i) => container.appendChild(makeListItem(code, f, i, i === 0)));
+    changeVideo(`${code}__0`);
+  }
+
+  function changeVideo(elementId) {
+    updateActive(elementId);
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    setPlayerSrc(el.dataset.url || "");
+  }
+
+  function setPlayerSrc(url) { document.getElementById("VideoPlayer").src = url || ""; }
+
+  function updateActive(activeId) {
+    document.querySelectorAll("#playListItems .listItem").forEach(n => {
+      n.classList.remove("playlist-active");
+      n.classList.add("playlist-item");
+    });
+    if (activeId) {
+      const node = document.getElementById(activeId);
+      if (node) {
+        node.classList.remove("playlist-item");
+        node.classList.add("playlist-active");
+      }
+    }
+  }
+
+  function switchPlaylist() {
+    const sel = document.getElementById("thePlayListItems");
+    const code = sel.value;
+    const label = (CATEGORIES.find(c => c[0] === code) || [code, ""])[1] || code;
+    document.getElementById("tagLines").textContent = `Listing ${label} Playlist`;
+    buildPlaylist(code);
+  }
+
+  /* -------------------- HOWTO DOCS (dynamic tabs from /api/pdfs) -------------------- */
+  function buildDocTabsFromFolders(pdfMap) {
+    const menu = document.getElementById("tabMenu");
+    menu.innerHTML = "";
+
+    const codes = Object.keys(pdfMap).sort(); // simple A–Z; change if you want natural sort
+
+    if (codes.length === 0) {
+      // No folders found
+      const p = document.createElement("p");
+      p.textContent = "No document folders found under uploads/pdf/";
+      document.getElementById("docs-legend").textContent = "Documents";
+      document.getElementById("docs-blurb").textContent  = "No folders detected.";
+      document.getElementById("doc-tbody").innerHTML = "";
+      menu.appendChild(p);
+      return;
+    }
+
+    codes.forEach((code, idx) => {
+      const span = document.createElement("span");
+      span.className = "ttab" + (idx === 0 ? " nav-menu-active" : "");
+      span.dataset.code = code;
+      span.setAttribute("onclick", `switchDocs('${code}')`);
+      // radio input (to match your original markup)
+      const input = document.createElement("input");
+      input.type = "radio";
+      span.appendChild(input);
+      span.appendChild(document.createTextNode(prettyLabelFromFolder(code).toUpperCase()));
+      menu.appendChild(span);
+    });
+
+    // Activate first folder by default
+    switchDocs(codes[0]);
+  }
+
+  function switchDocs(code) {
+    // Tab highlight
+    document.querySelectorAll('#tabMenu .ttab').forEach(t => t.classList.remove('nav-menu-active'));
+    const active = Array.from(document.querySelectorAll('#tabMenu .ttab'))
+      .find(s => s.dataset.code === code);
+    if (active) active.classList.add('nav-menu-active');
+
+    // Legend + blurb
+    const label = prettyLabelFromFolder(code);
+    document.getElementById('docs-legend').textContent = label;
+    document.getElementById('docs-blurb').textContent  = `Reference manuals and how-to guides for ${label}.`;
+
+    // Table rows
+    renderDocRows(code);
+  }
+
+  function renderDocRows(code) {
+    const tbody = document.getElementById('doc-tbody');
+    tbody.innerHTML = '';
+
+    const items = KB_PDFS[code] || [];
+    if (items.length === 0) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 2;
+      td.textContent = `No PDFs found in uploads/pdf/${code}/`;
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+
+    items.forEach(it => {
+      const tr = document.createElement('tr');
+
+      // Name cell (popup opens the viewer URL)
+      const tdName = document.createElement('td');
+      const lbl = document.createElement('label');
+      lbl.setAttribute('target', 'popup');
+      lbl.textContent = it.name;
+      lbl.setAttribute('onclick',
+        `window.open('${it.viewer}','popup','left=250,top=120,width=800,height=600'); return false;`);
+      tdName.appendChild(lbl);
+
+      // Purpose (placeholder; can wire to config later)
+      const tdPurpose = document.createElement('td');
+      tdPurpose.className = 'u-table-cell';
+      tdPurpose.textContent = 'Document description coming soon.';
+
+      tr.appendChild(tdName);
+      tr.appendChild(tdPurpose);
+      tbody.appendChild(tr);
+    });
+  }
+
+  /* -------------------- BOOT: fetch and render -------------------- */
+  (function init() {
+    // Default playlist selection + tagline
+    const sel = document.getElementById("thePlayListItems");
+    sel.value = DEFAULT_CODE;
+    document.getElementById("tagLines").textContent = "Listing Supplier Playlist";
+
+    // Fetch videos and PDFs in parallel
+    Promise.all([
+      fetch("/api/videos").then(r => r.json()),
+      fetch("/api/pdfs").then(r => r.json())
+    ])
+    .then(([videos, pdfs]) => {
+      KB_VIDEOS = videos || {};
+      KB_PDFS  = pdfs  || {};
+      buildPlaylist(DEFAULT_CODE);
+      buildDocTabsFromFolders(KB_PDFS);
+    })
+    .catch(() => {
+      KB_VIDEOS = {};
+      KB_PDFS  = {};
+      buildPlaylist(DEFAULT_CODE);
+      buildDocTabsFromFolders(KB_PDFS);
+    });
+
+    // keep dropdown in sync with button
+    document.getElementById("thePlayListItems").addEventListener("change", switchPlaylist);
+  })();
+</script>
+
+{% endblock %}

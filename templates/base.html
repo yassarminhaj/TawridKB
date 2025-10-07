@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>{{ title or config.SITE_TITLE }}</title>
+  <meta name="description" content="Tawrid Knowledge Base" />
+
+  <!-- CSS: keep your original pipeline -->
+  <link rel="icon" href="{{ url_for('static', filename='images/default-logo.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/normalize.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/skeleton.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+</head>
+<body>
+
+  <!-- ===== HEADER (.thePad) from your original index.html ===== -->
+  <div class="thePad" style="position: sticky; top: 0; z-index: 1000;background:#fff; ">
+    <div class="row" style="border: solid 1px black; ">
+      <div class="twelve columns" style="background-color: white;">
+        <div class="six columns">
+         <span>
+            <img class="kb-header-logo" src="{{ url_for('static', filename='images/default-logo.png') }}" alt="Tawrid Logo" onclick="window.scrollTo({ top: 0, behavior: 'smooth' }); return false;">
+          </span>
+        </div>
+        <div class="six columns">
+          <nav class="navbar">
+            <ul class="navbar-list" style="float:right;">
+              <li class="navbar-item">
+                <a class="navbar-link" href="#selectPlaylist">VideoTutorials</a>
+              </li>
+              <li class="navbar-item">
+                <a class="navbar-link" href="#tabMenu">User Manuals</a>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PAGE CONTENT GOES HERE ===== -->
+  {% block content %}{% endblock %}
+
+  <!-- ===== FOOTER (.thePad) from your original index.html ===== -->
+  <div class="thePad">
+    <div class="row">
+      <div class="twelve columns" style="bottom: 0; border: solid 1px black;">
+        <center>
+          <em>Source code © by Tawrid Company. All rights reserved.</em>
+        </center>
+      </div>
+    </div>
+  </div>
+
+  <!-- JS: keep your originals -->
+  <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/site.js') }}"></script>
+
+<script>
+  // Add tabindex so we can focus containers (helps screen readers too)
+  (function ensureTabTargets(){
+    ["selectPlaylist","tabMenu"].forEach(id=>{
+      var el = document.getElementById(id);
+      if (el && !el.hasAttribute("tabindex")) el.setAttribute("tabindex","-1");
+    });
+  })();
+
+  // Reusable flash helper
+  function kbFlash(id, durMs=1200){
+    var el = document.getElementById(id);
+    if(!el) return;
+    // focus without scrolling (in case we already are there)
+    el.focus({ preventScroll: true });
+    // restart animation every click
+    el.classList.remove("kb-flash");
+    void el.offsetWidth; // reflow trick to restart CSS animation
+    el.classList.add("kb-flash");
+    setTimeout(function(){ el.classList.remove("kb-flash"); }, durMs);
+  }
+
+  // Hook all header nav links that point to in-page anchors
+  document.querySelectorAll('.navbar a[href^="#"]').forEach(function(a){
+    a.addEventListener('click', function(){
+      var id = this.getAttribute('href').slice(1);
+      // Delay flash to after the browser does the anchor jump (if any)
+      requestAnimationFrame(function(){ kbFlash(id); });
+    });
+  });
+</script>
+
+</body>
+</html>
