@@ -1,3 +1,5 @@
+summa
+faster-whisper
 # Production dependencies for Render (pin exact versions for repeatable builds)
 Flask==3.0.3
 gunicorn==21.2.0
