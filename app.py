@@ -118,6 +118,17 @@ def scan_pdfs():
             out[folder.name] = items  # key is the folder name (e.g., 01_supplier)
     return out
 
+@app.route("/generate_description/<video_id>")
+def auto_generate_description(video_id):
+    video = get_video_by_id(video_id)  # your DB fetch logic
+    if not video.description:
+        transcript = transcribe_video(video.file_path)
+        description = generate_description(transcript)
+        update_video_description(video_id, description)  # DB update
+        return {"status": "done", "description": description}
+    else:
+        return {"status": "skipped", "reason": "Description already exists"}
+
 @app.route("/")
 def home():
     # Provide a default video URL so the iframe can load immediately
